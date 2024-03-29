@@ -1,5 +1,7 @@
-use poise::{framework, serenity_prelude::{self as serenity, ChannelId}};
-use kalosm::language::{Llama, LlamaSource, ModelExt, StreamExt};
+use std::sync::Arc;
+
+use poise::{framework, serenity_prelude::{self as serenity, ChannelId, Typing}};
+use kalosm::language::{Llama, LlamaSource, ModelExt, StreamExt, TextStream};
 
 struct Data {} // User data, which is stored and accessible in all command invocations
 type Error = Box<dyn std::error::Error + Send + Sync>;
@@ -33,14 +35,23 @@ async fn event_handler(
         serenity::FullEvent::Message { new_message } => {
             if new_message.channel_id.get() == 1133703172922286133 {
                 if new_message.content.starts_with("bottomuck, ") {
-                    let model = Llama::builder().with_source(LlamaSource::tiny_llama_1_1b_chat()).build().unwrap();
-                    let prompt = "<|system|>\nYou are a friendly chatbot. Your job is to respond to questions and instructions seriously, but with a funny twist.</s>\n<|user|>\n".to_owned() + &new_message.clone().content.split_off(11) + "</s>\n<|assistant|>\n";
-                    let mut result = model.stream_text(&prompt).with_max_length(300).await.unwrap();
-                    let mut message = new_message.reply(ctx, "‎ ").await.unwrap();
+                    let typing = Typing::start(ctx.http.clone(), ChannelId::new(1133703172922286133));
+                    let model = Llama::builder().with_source(LlamaSource::mistral_7b_instruct_2()).build().unwrap();
+                    let prompt = "<s>[INST]You are a friendly chatbot. Your job is to respond to questions and instructions seriously, but with a funny twist. Be sassy. If you think the user's prompt deserves a joke response, respond in a sarcastic manner. Try to keep your responses within around 50 words. The next instruction is your prompt.[/INST]\n[INST]".to_owned() + &new_message.clone().content.split_off(11) + "[/INST]\n";
+                    let mut stream = model.generate_text(&prompt).with_max_length(300).await.unwrap();
+                    let mut message = new_message.reply(ctx, stream).await.unwrap();
+                    typing.stop();
+                    // let mut message = new_message.reply(ctx, "‎ ").await.unwrap();
 
-                    while let Some(token) = result.next().await {
-                        message.edit(ctx, serenity::EditMessage::new().content(format!("{}{}", message.content, token))).await.unwrap();
-                    }
+                    // let mut buffer = String::new();
+                    // while let Some(token) = stream.next().await {
+                        // if buffer.len() > 15 {
+                            // message.edit(ctx, serenity::EditMessage::new().content(format!("{}{}", message.content, token))).await.unwrap();
+                        //     buffer = String::new();
+                        // } else {
+                        //     buffer += &token;
+                        // }
+                    // }
                 }
             }
         }
