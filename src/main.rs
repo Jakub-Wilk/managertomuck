@@ -52,7 +52,7 @@ async fn event_handler(
                 let has_createe = current_roles.iter().map(|x| &x.name).any(|s| s.contains("auto-whitelist-test"));
                 if !had_createe && has_createe {
                     event.guild_id.channels(ctx).await.unwrap().get(&ChannelId::new(1133703172922286133)).unwrap().say(ctx, format!("User {} just got accepted; This is a test message", new.as_ref().unwrap().display_name())).await.unwrap();
-                    current_member.remove_role(ctx, current_roles.iter().find(|r| r.name.contains("auto-whitelist-test")).unwrap())
+                    current_member.remove_role(ctx, current_roles.iter().find(|r| r.name.contains("auto-whitelist-test")).unwrap()).await.unwrap();
                 }
             }
         }
