@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use poise::{framework, serenity_prelude::{self as serenity, ChannelId, Typing}};
-use kalosm::language::{Llama, LlamaSource, ModelExt, StreamExt, TextStream};
+// use kalosm::language::{Llama, LlamaSource, ModelExt, StreamExt, TextStream};
 
 struct Data {} // User data, which is stored and accessible in all command invocations
 type Error = Box<dyn std::error::Error + Send + Sync>;
@@ -32,35 +32,27 @@ async fn event_handler(
         serenity::FullEvent::Ready { data_about_bot, .. } => {
             println!("Logged in as {}", data_about_bot.user.name);
         }
-        serenity::FullEvent::Message { new_message } => {
-            if new_message.channel_id.get() == 1133703172922286133 {
-                if new_message.content.starts_with("bottomuck, ") {
-                    let typing = Typing::start(ctx.http.clone(), ChannelId::new(1133703172922286133));
-                    let model = Llama::builder().with_source(LlamaSource::mistral_7b_instruct_2()).build().unwrap();
-                    let prompt = "<s>[INST]You are a friendly chatbot. Your job is to respond to questions and instructions seriously, but with a funny twist. Be sassy. If you think the user's prompt deserves a joke response, respond in a sarcastic manner. Try to keep your responses within around 50 words. The next instruction is your prompt.[/INST]\n[INST]".to_owned() + &new_message.clone().content.split_off(11) + "[/INST]\n";
-                    let mut stream = model.generate_text(&prompt).with_max_length(300).await.unwrap();
-                    let mut message = new_message.reply(ctx, stream).await.unwrap();
-                    typing.stop();
-                    // let mut message = new_message.reply(ctx, "‎ ").await.unwrap();
-
-                    // let mut buffer = String::new();
-                    // while let Some(token) = stream.next().await {
-                        // if buffer.len() > 15 {
-                            // message.edit(ctx, serenity::EditMessage::new().content(format!("{}{}", message.content, token))).await.unwrap();
-                        //     buffer = String::new();
-                        // } else {
-                        //     buffer += &token;
-                        // }
-                    // }
-                }
-            }
-        }
+        // serenity::FullEvent::Message { new_message } => {
+        //     if new_message.channel_id.get() == 1133703172922286133 {
+        //         if new_message.content.starts_with("bottomuck, ") {
+        //             let typing = Typing::start(ctx.http.clone(), ChannelId::new(1133703172922286133));
+        //             let model = Llama::builder().with_source(LlamaSource::mistral_7b_instruct_2()).build().unwrap();
+        //             let prompt = "<s>[INST]You are a friendly chatbot. Your job is to respond to questions and instructions seriously, but with a funny twist. Be sassy. If you think the user's prompt deserves a joke response, respond in a sarcastic manner. Try to keep your responses within around 50 words. The next instruction is your prompt.[/INST]\n[INST]".to_owned() + &new_message.clone().content.split_off(11) + "[/INST]\n";
+        //             let mut stream = model.generate_text(&prompt).with_max_length(300).await.unwrap();
+        //             let mut message = new_message.reply(ctx, stream).await.unwrap();
+        //             typing.stop();
+        //         }
+        //     }
+        // }
         serenity::FullEvent::GuildMemberUpdate { old_if_available, new, event } => {
             if event.guild_id.get() == 1047345236302647397 {
-                let had_createe = old_if_available.as_ref().unwrap().roles(ctx).unwrap().iter().map(|x| &x.name).any(|s| s.contains("Createe"));
-                let has_createe = new.as_ref().unwrap().roles(ctx).unwrap().iter().map(|x| &x.name).any(|s| s.contains("Createe"));
+                let had_createe = old_if_available.as_ref().unwrap().roles(ctx).unwrap().iter().map(|x| &x.name).any(|s| s.contains("auto-whitelist-test"));
+                let current_member = new.as_ref().unwrap();
+                let current_roles = current_member.roles(ctx).unwrap();
+                let has_createe = current_roles.iter().map(|x| &x.name).any(|s| s.contains("auto-whitelist-test"));
                 if !had_createe && has_createe {
                     event.guild_id.channels(ctx).await.unwrap().get(&ChannelId::new(1133703172922286133)).unwrap().say(ctx, format!("User {} just got accepted; This is a test message", new.as_ref().unwrap().display_name())).await.unwrap();
+                    current_member.remove_role(ctx, current_roles.iter().find(|r| r.name.contains("auto-whitelist-test")).unwrap())
                 }
             }
         }

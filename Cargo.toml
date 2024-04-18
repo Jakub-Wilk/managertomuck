@@ -7,7 +7,10 @@ edition = "2021"
 
 [dependencies]
 dotenvy = "0.15.7"
-kalosm = "0.2.1"
+# kalosm = "0.2.1"
 poise = "0.6.1"
 tokio = { version = "1.37.0", features = ["rt-multi-thread", "full"] }
-zstd-sys = "=2.0.9"
+# zstd-sys = "=2.0.9"
+
+# [patch.crates-io]
+# esaxx-rs = {path = "./esaxx-rs"}
