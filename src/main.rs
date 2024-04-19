@@ -52,7 +52,7 @@ async fn event_handler(
                     Some(old) => old.roles(ctx).unwrap().iter().map(|x| &x.name).any(|s| s.contains("auto-whitelist-test")),
                     None => {
                         channel.say(ctx, format!("Test message: {} just had their profile changed, but only the new profile is available", member.mention())).await.unwrap();
-                        return
+                        return Ok(())
                     }
                 };
                 let current_roles = current_member.roles(ctx).unwrap();
