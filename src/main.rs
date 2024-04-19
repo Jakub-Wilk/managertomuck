@@ -55,11 +55,11 @@ async fn event_handler(
                         return Ok(())
                     }
                 };
-                let current_roles = current_member.roles(ctx).unwrap();
+                let current_roles = member.roles(ctx).unwrap();
                 let has_createe = current_roles.iter().map(|x| &x.name).any(|s| s.contains("auto-whitelist-test"));
                 if !had_createe && has_createe {
                     channel.say(ctx, format!("Test message: User {} just got accepted", member.mention())).await.unwrap();
-                    current_member.remove_role(ctx, current_roles.iter().find(|r| r.name.contains("auto-whitelist-test")).unwrap()).await.unwrap();
+                    member.remove_role(ctx, current_roles.iter().find(|r| r.name.contains("auto-whitelist-test")).unwrap()).await.unwrap();
                 }
             }
         }
