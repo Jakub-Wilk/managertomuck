@@ -46,7 +46,8 @@ async fn event_handler(
         // }
         serenity::FullEvent::GuildMemberUpdate { old_if_available, new, event } => {
             if event.guild_id.get() == 1047345236302647397 {
-                let channel = event.guild_id.channels(ctx).await.unwrap().get(&ChannelId::new(1133703172922286133)).unwrap();
+                let channel_map = event.guild_id.channels(ctx).await.unwrap();
+                let channel = channel_map.get(&ChannelId::new(1133703172922286133)).unwrap();
                 let member = new.as_ref().unwrap();
                 let had_createe = match old_if_available.as_ref() {
                     Some(old) => old.roles(ctx).unwrap().iter().map(|x| &x.name).any(|s| s.contains("auto-whitelist-test")),
