@@ -50,9 +50,10 @@ async fn event_handler(
                 let channel = channel_map.get(&ChannelId::new(1133703172922286133)).unwrap();
                 let member = new.as_ref().unwrap();
                 let current_roles = member.roles(ctx).unwrap();
-                let is_new = current_roles.iter().map(|x| &x.name).any(|s| s.contains("auto-whitelist-test"));
+                let current_role_names = current_roles.iter().map(|x| x.name.clone());
+                let is_new = current_role_names.clone().any(|s| s.contains("auto-whitelist-test"));
                 if is_new {
-                    channel.say(ctx, format!("Test message: User {} just got accepted", member.mention())).await.unwrap();
+                    channel.say(ctx, format!("Test message: User {} just got accepted, roles: {}", member.mention(), current_role_names.collect::<Vec<String>>().join(", "))).await.unwrap();
                     let messages = channel.messages(ctx, GetMessages::new().limit(100)).await.unwrap();
                     let messages_mentioning_user = messages.iter().map(|m| &m.content).filter(|m| m.contains(member.user.name.as_str()));
                     for message in messages_mentioning_user {
