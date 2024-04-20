@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use poise::{framework, serenity_prelude::{self as serenity, ChannelId, Mentionable, Typing}};
+use poise::{framework, serenity_prelude::{self as serenity, ChannelId, GetMessages, Mentionable, Typing}};
 // use kalosm::language::{Llama, LlamaSource, ModelExt, StreamExt, TextStream};
 
 struct Data {} // User data, which is stored and accessible in all command invocations
@@ -49,17 +49,15 @@ async fn event_handler(
                 let channel_map = event.guild_id.channels(ctx).await.unwrap();
                 let channel = channel_map.get(&ChannelId::new(1133703172922286133)).unwrap();
                 let member = new.as_ref().unwrap();
-                let had_createe = match old_if_available.as_ref() {
-                    Some(old) => old.roles(ctx).unwrap().iter().map(|x| &x.name).any(|s| s.contains("auto-whitelist-test")),
-                    None => {
-                        channel.say(ctx, format!("Test message: {} just had their profile changed, but only the new profile is available", member.mention())).await.unwrap();
-                        return Ok(())
-                    }
-                };
                 let current_roles = member.roles(ctx).unwrap();
-                let has_createe = current_roles.iter().map(|x| &x.name).any(|s| s.contains("auto-whitelist-test"));
-                if !had_createe && has_createe {
+                let is_new = current_roles.iter().map(|x| &x.name).any(|s| s.contains("auto-whitelist-test"));
+                if is_new {
                     channel.say(ctx, format!("Test message: User {} just got accepted", member.mention())).await.unwrap();
+                    let messages = channel.messages(ctx, GetMessages::new().limit(100)).await.unwrap();
+                    let messages_mentioning_user = messages.iter().map(|m| &m.content).filter(|m| m.contains(member.user.name.as_str()));
+                    for message in messages_mentioning_user {
+                        println!("{}", message);
+                    }
                     member.remove_role(ctx, current_roles.iter().find(|r| r.name.contains("auto-whitelist-test")).unwrap()).await.unwrap();
                 }
             }
