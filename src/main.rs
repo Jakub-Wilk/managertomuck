@@ -1,6 +1,10 @@
-use std::sync::Arc;
+mod engsim;
 
-use poise::{framework, serenity_prelude::{self as serenity, ChannelId, GetMessages, Mentionable, Typing}};
+use std::{fmt::format, sync::Arc, io, io::prelude::*};
+use regex::Regex;
+use engsim::SimAnalyzer;
+
+use poise::{framework, serenity_prelude::{self as serenity, ChannelId, Embed, GetMessages, Mentionable, Typing}, CreateReply};
 // use kalosm::language::{Llama, LlamaSource, ModelExt, StreamExt, TextStream};
 
 struct Data {} // User data, which is stored and accessible in all command invocations
@@ -8,17 +12,38 @@ type Error = Box<dyn std::error::Error + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
 
 /// Displays your or another user's account creation date
-#[poise::command(context_menu_command = "Roles", guild_only)]
+#[poise::command(context_menu_command = "IGN Test", guild_only)]
 async fn roles(
     ctx: Context<'_>,
-    #[description = "User who's roles we get"] user: serenity::User,
+    #[description = "message"] message: serenity::Message,
 ) -> Result<(), Error> {
-    let member = ctx.partial_guild().await.unwrap().member(ctx, user.id).await.unwrap();
-    // let roles: Vec<_> = member.roles(ctx.cache()).unwrap().iter().map(|x| x.name.clone()).collect();
-    // let response = format!("{}", roles.join(", "));
-    let has_createe = member.roles(ctx).unwrap().iter().map(|x| &x.name).any(|s| s.contains("Createe"));
-    let response = format!("{}", if has_createe {"Createe"} else {"Not a createe"});
-    ctx.say(response).await?;
+    let nickname = message.embeds[0].title.as_ref().unwrap().split("'").next().clone().unwrap();
+    let channel = message.channel(ctx).await.unwrap().guild().unwrap();
+    let messages = channel.messages(ctx, GetMessages::new().limit(100)).await.unwrap();
+    let messages_from_fluffy = messages.iter().filter(|&m| m.author.id == 996757931641016371);
+    let mff_embeds = messages_from_fluffy.map(|m| m.embeds.clone());
+    let mut mff_e_mentioning_user: Vec<Embed> = vec![];
+    for embs in mff_embeds {
+        if embs.len() == 2 {
+            let em = &embs[0];
+            if em.title.as_ref().unwrap().starts_with(nickname) {
+                mff_e_mentioning_user.push(em.clone());
+            }
+        }
+    }
+    let re = Regex::new(r"name\?\*\*\n([\W\w]+)\*\*Q6").unwrap();
+    let mut q5answers: Vec<String> = vec![];
+    for em in mff_e_mentioning_user {
+        let q5answer = &re.captures(em.description.as_ref().unwrap()).unwrap()[1];
+        q5answers.push(String::from(q5answer));
+    }
+    let possible_nickname_message = q5answers.last().unwrap();
+    let re2 = Regex::new(r"\w+").unwrap();
+    let words = re2.find_iter(&possible_nickname_message).map(|m| m.as_str());
+    let analyzer = SimAnalyzer::new();
+    let results = words.map(|w| (analyzer.confidence(w.to_owned()), w.to_owned()));
+    let nickname_prediciton = results.fold((f64::INFINITY, String::new()), |a, b| if a.0 < b.0 { a } else { b });
+    ctx.reply(format!("{} - {}", nickname_prediciton.1, nickname_prediciton.0)).await.unwrap();
     Ok(())
 }
 
@@ -51,14 +76,53 @@ async fn event_handler(
                 let member = new.as_ref().unwrap();
                 let current_roles = member.roles(ctx).unwrap();
                 let current_role_names = current_roles.iter().map(|x| x.name.clone());
-                let is_new = current_role_names.clone().any(|s| s.contains("auto-whitelist-test"));
-                if is_new {
-                    channel.say(ctx, format!("Test message: User {} just got accepted, roles: {}", member.mention(), current_role_names.collect::<Vec<String>>().join(", "))).await.unwrap();
+
+                let is_to_auto_whitelist = current_role_names.clone().any(|s| s.to_lowercase().contains("auto-whitelist-test"));
+                let is_applicant = current_role_names.clone().any(|s| s.to_lowercase().contains("applicant"));
+
+                if is_to_auto_whitelist && !is_applicant {
                     let messages = channel.messages(ctx, GetMessages::new().limit(100)).await.unwrap();
-                    let messages_mentioning_user = messages.iter().map(|m| &m.content).filter(|m| m.contains(member.user.name.as_str()));
-                    for message in messages_mentioning_user {
-                        println!("{}", message);
+                    let messages_from_fluffy = messages.iter().filter(|&m| m.author.id == 996757931641016371);
+                    let mff_embeds = messages_from_fluffy.map(|m| m.embeds.clone());
+                    let mut mff_e_mentioning_user = vec![];
+                    for embs in mff_embeds {
+                        if embs.len() == 2 {
+                            let em = &embs[0];
+                            if em.title.as_ref().unwrap().starts_with(member.user.name.as_str()) {
+                                mff_e_mentioning_user.push(em.clone());
+                            }
+                        }
                     }
+                    let re = Regex::new(r"name\?\*\*\n([\W\w]+)\*\*Q6").unwrap();
+                    let mut q5answers: Vec<String> = vec![];
+                    for em in mff_e_mentioning_user {
+                        let q5answer = &re.captures(em.description.as_ref().unwrap()).unwrap()[1];
+                        q5answers.push(String::from(q5answer));
+                    }
+                    let possible_nickname_message = q5answers.last().unwrap();
+                    
+                    let nickname: Option<String>;
+                    if possible_nickname_message.contains(" ") || possible_nickname_message.contains("\n") {
+                        let re2 = Regex::new(r"\w+").unwrap();
+                        let words = re2.find_iter(&possible_nickname_message).map(|m| m.as_str());
+                        let analyzer = SimAnalyzer::new();
+                        let results = words.map(|w| (analyzer.confidence(w.to_owned()), w.to_owned()));
+                        let nickname_prediciton = results.fold((f64::INFINITY, String::new()), |a, b| if a.0 < b.0 { a } else { b });
+                        if nickname_prediciton.0 < 0.8 {
+                            nickname = Some(nickname_prediciton.1)
+                        } else {
+                            nickname = None
+                        }
+                    } else {
+                        nickname = Some(possible_nickname_message.to_owned());
+                    }
+
+                    if let Some(nickname) = nickname {
+                        channel.say(ctx, format!("Test message: User {} just got accepted, detected nickname: {}", member.mention(), nickname)).await.unwrap();
+                    } else {
+                        channel.say(ctx, format!("Test message: User {} just got accepted, nickname detection failed.", member.mention())).await.unwrap();
+                    }
+
                     member.remove_role(ctx, current_roles.iter().find(|r| r.name.contains("auto-whitelist-test")).unwrap()).await.unwrap();
                 }
             }
