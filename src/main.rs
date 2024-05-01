@@ -93,21 +93,21 @@ async fn event_handler(
                             }
                         }
                     }
-                    let re = Regex::new(r"name\?\*\*\n([\W\w]+)\*\*Q6").unwrap();
-                    let mut q5answers: Vec<String> = vec![];
+                    let q5_regex = Regex::new(r"name\?\*\*\n([\W\w]+)\*\*Q6").unwrap();
+                    let mut q5_answers: Vec<String> = vec![];
                     for em in mff_e_mentioning_user {
-                        let q5answer = &re.captures(em.description.as_ref().unwrap()).unwrap()[1];
-                        q5answers.push(String::from(q5answer));
+                        let q5answer = &q5_regex.captures(em.description.as_ref().unwrap()).unwrap()[1];
+                        q5_answers.push(String::from(q5answer));
                     }
-                    let possible_nickname_message = q5answers.last().unwrap();
+                    let possible_nickname_message = q5_answers.last().unwrap();
                     
                     let nickname: Option<String>;
                     let value: Option<f64>;
-                    if possible_nickname_message.contains(" ") || possible_nickname_message.contains("\n") {
-                        let re2 = Regex::new(r"\w+").unwrap();
-                        let words = re2.find_iter(&possible_nickname_message).map(|m| m.as_str());
+                    let word_regex = Regex::new(r"\w+").unwrap();
+                    let pnm_words = word_regex.find_iter(&possible_nickname_message).map(|m| m.as_str()).collect::<Vec<&str>>();
+                    if pnm_words.len() > 1 {
                         let analyzer = SimAnalyzer::new();
-                        let results = words.map(|w| (analyzer.confidence(w.to_owned()), w.to_owned()));
+                        let results = pnm_words.iter().map(|w| (analyzer.confidence(w.to_string()), w.to_string()));
                         let nickname_prediciton = results.fold((f64::INFINITY, String::new()), |a, b| if a.0 < b.0 { a } else { b });
                         if nickname_prediciton.0 < 0.8 {
                             nickname = Some(nickname_prediciton.1)
@@ -116,7 +116,7 @@ async fn event_handler(
                         }
                         value = Some(nickname_prediciton.0);
                     } else {
-                        nickname = Some(possible_nickname_message.to_owned());
+                        nickname = Some(pnm_words[0].to_string());
                         value = None
                     }
 

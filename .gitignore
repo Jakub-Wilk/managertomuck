@@ -1,3 +1,4 @@
 /target
 .env
 esaxx-rs/
+src/bin/
