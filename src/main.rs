@@ -102,6 +102,7 @@ async fn event_handler(
                     let possible_nickname_message = q5answers.last().unwrap();
                     
                     let nickname: Option<String>;
+                    let value: Option<f64>;
                     if possible_nickname_message.contains(" ") || possible_nickname_message.contains("\n") {
                         let re2 = Regex::new(r"\w+").unwrap();
                         let words = re2.find_iter(&possible_nickname_message).map(|m| m.as_str());
@@ -113,14 +114,16 @@ async fn event_handler(
                         } else {
                             nickname = None
                         }
+                        value = Some(nickname_prediciton.0);
                     } else {
                         nickname = Some(possible_nickname_message.to_owned());
+                        value = None
                     }
 
                     if let Some(nickname) = nickname {
                         channel.say(ctx, format!("Test message: User {} just got accepted, detected nickname: {}", member.mention(), nickname)).await.unwrap();
                     } else {
-                        channel.say(ctx, format!("Test message: User {} just got accepted, nickname detection failed.", member.mention())).await.unwrap();
+                        channel.say(ctx, format!("Test message: User {} just got accepted, nickname detection failed. Message: `{}`, Value: {}", member.mention(), possible_nickname_message, value.unwrap())).await.unwrap();
                     }
 
                     member.remove_role(ctx, current_roles.iter().find(|r| r.name.contains("auto-whitelist-test")).unwrap()).await.unwrap();
