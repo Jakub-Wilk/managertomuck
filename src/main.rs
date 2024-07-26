@@ -1,50 +1,67 @@
-mod engsim;
-
 use std::{fmt::format, sync::Arc, io, io::prelude::*};
 use regex::Regex;
-use engsim::SimAnalyzer;
 
-use poise::{framework, serenity_prelude::{self as serenity, ChannelId, Embed, GetMessages, Mentionable, Typing}, CreateReply};
-// use kalosm::language::{Llama, LlamaSource, ModelExt, StreamExt, TextStream};
+use poise::{
+    execute_modal_on_component_interaction, framework, serenity_prelude::{
+        self as serenity, model::channel, ChannelId, CreateEmbed, Embed, GetMessages, GuildId, Interaction, InteractionId, Mentionable, Typing
+    }, CreateReply, Modal
+};
 
 struct Data {} // User data, which is stored and accessible in all command invocations
 type Error = Box<dyn std::error::Error + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
 
-/// Displays your or another user's account creation date
-#[poise::command(context_menu_command = "IGN Test", guild_only)]
-async fn roles(
-    ctx: Context<'_>,
-    #[description = "message"] message: serenity::Message,
-) -> Result<(), Error> {
-    let nickname = message.embeds[0].title.as_ref().unwrap().split("'").next().clone().unwrap();
-    let channel = message.channel(ctx).await.unwrap().guild().unwrap();
-    let messages = channel.messages(ctx, GetMessages::new().limit(100)).await.unwrap();
-    let messages_from_fluffy = messages.iter().filter(|&m| m.author.id == 996757931641016371);
-    let mff_embeds = messages_from_fluffy.map(|m| m.embeds.clone());
-    let mut mff_e_mentioning_user: Vec<Embed> = vec![];
-    for embs in mff_embeds {
-        if embs.len() == 2 {
-            let em = &embs[0];
-            if em.title.as_ref().unwrap().starts_with(nickname) {
-                mff_e_mentioning_user.push(em.clone());
-            }
-        }
+#[poise::command(slash_command, guild_only)]
+async fn test(ctx: Context<'_>) -> Result<(), Error> {
+    if ctx.author_member().await.unwrap().permissions(ctx)?.manage_guild() {
+        let channel = ctx.guild_channel().await.unwrap();
+        let message = {
+            let buttons = vec![serenity::CreateActionRow::Buttons(vec![
+                serenity::CreateButton::new("apply")
+                    .style(serenity::ButtonStyle::Success)
+                    .label("Apply!")
+            ])];
+
+            CreateReply::default()
+                .content("Application test")
+                .components(buttons)
+        };
+
+        ctx.send(message).await?;
     }
-    let re = Regex::new(r"name\?\*\*\n([\W\w]+)\*\*Q6").unwrap();
-    let mut q5answers: Vec<String> = vec![];
-    for em in mff_e_mentioning_user {
-        let q5answer = &re.captures(em.description.as_ref().unwrap()).unwrap()[1];
-        q5answers.push(String::from(q5answer));
-    }
-    let possible_nickname_message = q5answers.last().unwrap();
-    let re2 = Regex::new(r"\w+").unwrap();
-    let words = re2.find_iter(&possible_nickname_message).map(|m| m.as_str());
-    let analyzer = SimAnalyzer::new();
-    let results = words.map(|w| (analyzer.confidence(w.to_owned()), w.to_owned()));
-    let nickname_prediciton = results.fold((f64::INFINITY, String::new()), |a, b| if a.0 < b.0 { a } else { b });
-    ctx.reply(format!("{} - {}", nickname_prediciton.1, nickname_prediciton.0)).await.unwrap();
+    
     Ok(())
+}
+
+struct AsRefWrapper<'a, T>(&'a T);
+
+impl<'a, T> AsRef<T> for AsRefWrapper<'a, T> {
+    fn as_ref(&self) -> &T {
+        self.0
+    }
+}
+
+#[derive(Modal)]
+#[name = "Crafttomuck Application"]
+struct ApplicationModal {
+    #[name = "Is this an answer?"]
+    #[placeholder = "This is a text input"]
+    #[min_length = 10]
+    q1: String,
+    #[name = "Is this a longer answer?"]
+    #[placeholder = "This is a text input"]
+    #[paragraph]
+    #[min_length = 50]
+    q2: String
+
+}
+
+#[derive(Modal)]
+#[name = "Deny"]
+struct DenyModal {
+    #[name = "Reason for denial (optional)"]
+    #[placeholder = "Reason..."]
+    reason: Option<String>
 }
 
 async fn event_handler(
@@ -57,76 +74,128 @@ async fn event_handler(
         serenity::FullEvent::Ready { data_about_bot, .. } => {
             println!("Logged in as {}", data_about_bot.user.name);
         }
-        // serenity::FullEvent::Message { new_message } => {
-        //     if new_message.channel_id.get() == 1133703172922286133 {
-        //         if new_message.content.starts_with("bottomuck, ") {
-        //             let typing = Typing::start(ctx.http.clone(), ChannelId::new(1133703172922286133));
-        //             let model = Llama::builder().with_source(LlamaSource::mistral_7b_instruct_2()).build().unwrap();
-        //             let prompt = "<s>[INST]You are a friendly chatbot. Your job is to respond to questions and instructions seriously, but with a funny twist. Be sassy. If you think the user's prompt deserves a joke response, respond in a sarcastic manner. Try to keep your responses within around 50 words. The next instruction is your prompt.[/INST]\n[INST]".to_owned() + &new_message.clone().content.split_off(11) + "[/INST]\n";
-        //             let mut stream = model.generate_text(&prompt).with_max_length(300).await.unwrap();
-        //             let mut message = new_message.reply(ctx, stream).await.unwrap();
-        //             typing.stop();
-        //         }
-        //     }
-        // }
-        serenity::FullEvent::GuildMemberUpdate { old_if_available, new, event } => {
-            if event.guild_id.get() == 1047345236302647397 {
-                let channel_map = event.guild_id.channels(ctx).await.unwrap();
-                let channel = channel_map.get(&ChannelId::new(1133703172922286133)).unwrap();
-                let member = new.as_ref().unwrap();
-                let current_roles = member.roles(ctx).unwrap();
-                let current_role_names = current_roles.iter().map(|x| x.name.clone());
+        serenity::FullEvent::InteractionCreate {interaction} => {
+            if let Interaction::Component(interaction) = interaction {
 
-                let is_to_auto_whitelist = current_role_names.clone().any(|s| s.to_lowercase().contains("auto-whitelist-test"));
-                let is_applicant = current_role_names.clone().any(|s| s.to_lowercase().contains("applicant"));
+                let member = interaction.member.as_ref().unwrap();
 
-                if is_to_auto_whitelist && !is_applicant {
-                    let messages = channel.messages(ctx, GetMessages::new().limit(100)).await.unwrap();
-                    let messages_from_fluffy = messages.iter().filter(|&m| m.author.id == 996757931641016371);
-                    let mff_embeds = messages_from_fluffy.map(|m| m.embeds.clone());
-                    let mut mff_e_mentioning_user = vec![];
-                    for embs in mff_embeds {
-                        if embs.len() == 2 {
-                            let em = &embs[0];
-                            if em.title.as_ref().unwrap().starts_with(member.user.name.as_str()) {
-                                mff_e_mentioning_user.push(em.clone());
+                if interaction.data.custom_id == "apply" {
+
+                    let ApplicationModal {q1, q2} = execute_modal_on_component_interaction::<ApplicationModal>(AsRefWrapper(ctx), interaction.clone(), None, None).await?.unwrap();
+
+                    let message = {
+                        let author = serenity::CreateEmbedAuthor::new(member.display_name().to_string())
+                            .icon_url(member.user.avatar_url().unwrap());
+
+                        let embed = serenity::CreateEmbed::new()
+                            .author(author)
+                            .fields(vec![
+                                ("Question 1: Is this an answer?", q1, false),
+                                ("Question 2: Is this a longer answer?", q2, false),
+                                ("", "\u{2800}".to_string(), false)
+                            ])
+                            .fields(vec![
+                                ("Submitted by", member.mention().to_string(), true),
+                                ("Status", "Pending".to_string(), true),
+                                ("", String::new(), true)
+                            ])
+                            .color((241, 196, 15));
+
+                        serenity::CreateMessage::new()
+                            .embed(embed)
+                            .components(vec![serenity::CreateActionRow::Buttons(vec![
+                                serenity::CreateButton::new("approve")
+                                    .style(serenity::ButtonStyle::Success)
+                                    .label("Approve"),
+                                serenity::CreateButton::new("deny")
+                                    .style(serenity::ButtonStyle::Danger)
+                                    .label("Deny"),
+                                serenity::CreateButton::new("age")
+                                    .style(serenity::ButtonStyle::Danger)
+                                    .label("Deny (18+)"),
+                                serenity::CreateButton::new("secret")
+                                    .style(serenity::ButtonStyle::Danger)
+                                    .label("Deny (secret word)"),
+                                serenity::CreateButton::new("effort")
+                                    .style(serenity::ButtonStyle::Danger)
+                                    .label("Deny (low effort)"),
+                            ])])
+                    };
+
+                    interaction.channel_id.send_message(ctx, message).await?;
+
+                } else if ["approve", "deny", "age", "secret", "effort"].contains(&interaction.data.custom_id.as_str()) {
+                    if interaction.data.custom_id == "approve" {
+                        let message = &interaction.message;
+                        let mut embed = message.embeds[0].clone();
+                        let username = &embed.fields[3].value;
+                        let approved_by = interaction.member.as_ref().unwrap();
+
+                        embed.colour = Some(serenity::Colour::from_rgb(46, 204, 113));
+                        embed.fields[4].value = "Approved".to_string();
+                        embed.fields[5].name = "Approved by:".to_string();
+                        embed.fields[5].value = approved_by.mention().to_string();
+
+                        let edit_message = {
+                            serenity::EditMessage::new()
+                                .embed(CreateEmbed::from(embed))
+                                .components(vec![serenity::CreateActionRow::Buttons(vec![
+                                    serenity::CreateButton::new("disabled")
+                                        .style(serenity::ButtonStyle::Success)
+                                        .label("Approved!")
+                                        .disabled(true)
+                                ])])
+                        };
+
+                        interaction.message.clone().edit(ctx, edit_message).await?;
+                        interaction.create_response(ctx, serenity::CreateInteractionResponse::Acknowledge).await?;
+                    } else {
+                        let reason = match interaction.data.custom_id.as_str() {
+                            "age" => {
+                                "Sorry, this server is 18+!".to_string()
                             }
-                        }
-                    }
-                    let q5_regex = Regex::new(r"name\?\*\*\n([\W\w]+)\*\*Q6").unwrap();
-                    let mut q5_answers: Vec<String> = vec![];
-                    for em in mff_e_mentioning_user {
-                        let q5answer = &q5_regex.captures(em.description.as_ref().unwrap()).unwrap()[1];
-                        q5_answers.push(String::from(q5answer));
-                    }
-                    let possible_nickname_message = q5_answers.last().unwrap();
-                    
-                    let nickname: Option<String>;
-                    let value: Option<f64>;
-                    let word_regex = Regex::new(r"\w+").unwrap();
-                    let pnm_words = word_regex.find_iter(&possible_nickname_message).map(|m| m.as_str()).collect::<Vec<&str>>();
-                    if pnm_words.len() > 1 {
-                        let analyzer = SimAnalyzer::new();
-                        let results = pnm_words.iter().map(|w| (analyzer.confidence(w.to_string()), w.to_string()));
-                        let nickname_prediciton = results.fold((f64::INFINITY, String::new()), |a, b| if a.0 < b.0 { a } else { b });
-                        if nickname_prediciton.0 < 0.8 {
-                            nickname = Some(nickname_prediciton.1)
-                        } else {
-                            nickname = None
-                        }
-                        value = Some(nickname_prediciton.0);
-                    } else {
-                        nickname = Some(pnm_words[0].to_string());
-                        value = None
-                    }
+                            "secret" => {
+                                "Sorry, you have the wrong secret word! Read the rules carefully, and apply again!".to_string()
+                            }
+                            "effort" => {
+                                "Sorry, we are only accepting high effort applications, if you wish to try again please do so!".to_string()
+                            }
+                            _ => {
+                                let DenyModal { reason } = execute_modal_on_component_interaction(AsRefWrapper(ctx), interaction.clone(), None, None).await?.unwrap();
+                                match reason {
+                                    Some(reason) => reason,
+                                    None => "Sorry, but your application didn't meet our expectations!".to_string()
+                                }
+                            }
+                        };
 
-                    if let Some(nickname) = nickname {
-                        channel.say(ctx, format!("Test message: User {} just got accepted, detected nickname: {}", member.mention(), nickname)).await.unwrap();
-                    } else {
-                        channel.say(ctx, format!("Test message: User {} just got accepted, nickname detection failed. Message: `{}`, Value: {}", member.mention(), possible_nickname_message, value.unwrap())).await.unwrap();
-                    }
+                        let message = &interaction.message;
+                        let mut embed = message.embeds[0].clone();
+                        let username = &embed.fields[3].value;
+                        let denied_by = interaction.member.as_ref().unwrap();
 
-                    member.remove_role(ctx, current_roles.iter().find(|r| r.name.contains("auto-whitelist-test")).unwrap()).await.unwrap();
+                        embed.colour = Some(serenity::Colour::from_rgb(231, 76, 60));
+                        embed.fields[4].value = "Denied".to_string();
+                        embed.fields[5].name = "Denied by:".to_string();
+                        embed.fields[5].value = denied_by.mention().to_string();
+
+                        let edit_message = {
+                            serenity::EditMessage::new()
+                                .embed(
+                                    CreateEmbed::from(embed)
+                                        .field("Reason:", reason.to_string(), false)
+                                )
+                                .components(vec![serenity::CreateActionRow::Buttons(vec![
+                                    serenity::CreateButton::new("disabled")
+                                        .style(serenity::ButtonStyle::Danger)
+                                        .label("Denied")
+                                        .disabled(true)
+                                ])])
+                        };
+
+                        interaction.message.clone().edit(ctx, edit_message).await?;
+                        interaction.create_response(ctx, serenity::CreateInteractionResponse::Acknowledge).await?;
+                    }
                 }
             }
         }
@@ -143,7 +212,7 @@ async fn main() {
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
-            commands: vec![roles()],
+            commands: vec![test()],
             event_handler: |ctx, event, framework, data| {
                 Box::pin(event_handler(ctx, event, framework, data))
             },
@@ -151,7 +220,7 @@ async fn main() {
         })
         .setup(|ctx, _ready, framework| {
             Box::pin(async move {
-                poise::builtins::register_globally(ctx, &framework.options().commands).await?;
+                poise::builtins::register_in_guild(ctx, &framework.options().commands, GuildId::new(1047345236302647397)).await?;
                 Ok(Data {})
             })
         })
